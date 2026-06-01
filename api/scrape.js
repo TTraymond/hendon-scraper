@@ -57,7 +57,8 @@ module.exports = async (req, res) => {
             }
         });
 
-        const volume = $('.results-table tbody tr').length;
+        // CORRECTION : .results au lieu de .results-table
+        const volume = $('.results tbody tr').length;
         const cleanNumber = (str) => parseInt(str.replace(/[^0-9]/g, '')) || 0;
 
         const data = {
