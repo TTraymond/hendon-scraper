@@ -57,8 +57,27 @@ module.exports = async (req, res) => {
             }
         });
 
-        // CORRECTION : .results au lieu de .results-table
-        const volume = $('.results tbody tr').length;
+        // RECHERCHE DU VOLUME D'ITM INFALLIBLE :
+        let volume = 0;
+        
+        // On scanne les onglets (qui contiennent "Results (243)" ou "Results (365)" par exemple)
+        $('a, span, li').each((i, el) => {
+            const text = $(el).text().trim();
+            // On s'assure d'éviter "Online Results" en vérifiant que ça commence strictement par "Results ("
+            if (text.startsWith("Results (") || text.match(/^Results\s*\((\d+)\)$/i)) {
+                const match = text.match(/Results\s*\((\d+)\)/i);
+                if (match && match[1]) {
+                    volume = parseInt(match[1]);
+                    return false; // On stoppe la recherche
+                }
+            }
+        });
+
+        // Si jamais l'onglet n'a pas été trouvé, on compte les lignes de tableau classiques
+        if (volume === 0) {
+            volume = $('.results tbody tr').length || $('.results tr').length || 0;
+        }
+
         const cleanNumber = (str) => parseInt(str.replace(/[^0-9]/g, '')) || 0;
 
         const data = {
