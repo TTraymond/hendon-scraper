@@ -38,54 +38,64 @@ module.exports = async (req, res) => {
         }
 
         const $ = cheerio.load(htmlData);
-        const fullName = $('h1').first().text().trim();
+        let fullName = $('h1').first().text().trim();
 
         if (!fullName) {
             throw new Error("Impossible de lire le nom du joueur.");
         }
 
+        // Nettoyage intelligent du nom (pour enlever le drapeau ou le pays collé au début comme "France ")
+        const countries = ["France", "Spain", "Espagne", "United States", "USA", "Canada", "Germany", "Allemagne", "United Kingdom", "UK", "Italy", "Italie", "Belgium", "Belgique", "Switzerland", "Suisse", "Morocco", "Maroc", "Portugal", "Austria", "Autriche", "Brazil", "Brésil", "Argentina", "Argentine", "Ireland", "Irlande"];
+        for (const country of countries) {
+            const regex = new RegExp(`^${country}\\s+`, 'i');
+            fullName = fullName.replace(regex, '');
+        }
+
+        // EXTRACTION PAR REGEX SUR LE TEXTE BRUT (Infaillible face aux changements de design CSS)
+        const plainText = $('body').text();
+        
         let totalWinnings = "";
         let bestCash = "";
-        
-        $('.player-profile-info-table tr').each((i, el) => {
-            const text = $(el).text();
-            if (text.includes('Total Live Earnings')) {
-                totalWinnings = $(el).find('td').eq(1).text().trim();
-            }
-            if (text.includes('Best Live Cash')) {
-                bestCash = $(el).find('td').eq(1).text().trim();
-            }
-        });
+
+        const totalWinningsMatch = plainText.match(/Total Live Earnings\s*[:\-]*\s*\$?\s*([0-9,.]+)/i);
+        if (totalWinningsMatch && totalWinningsMatch[1]) {
+            totalWinnings = totalWinningsMatch[1].trim();
+        }
+
+        const bestCashMatch = plainText.match(/Best Live Cash\s*[:\-]*\s*\$?\s*([0-9,.]+)/i);
+        if (bestCashMatch && bestCashMatch[1]) {
+            bestCash = bestCashMatch[1].trim();
+        }
 
         // RECHERCHE DU VOLUME D'ITM INFALLIBLE :
         let volume = 0;
         
-        // On scanne les onglets (qui contiennent "Results (243)" ou "Results (365)" par exemple)
         $('a, span, li').each((i, el) => {
             const text = $(el).text().trim();
-            // On s'assure d'éviter "Online Results" en vérifiant que ça commence strictement par "Results ("
             if (text.startsWith("Results (") || text.match(/^Results\s*\((\d+)\)$/i)) {
                 const match = text.match(/Results\s*\((\d+)\)/i);
                 if (match && match[1]) {
                     volume = parseInt(match[1]);
-                    return false; // On stoppe la recherche
+                    return false;
                 }
             }
         });
 
-        // Si jamais l'onglet n'a pas été trouvé, on compte les lignes de tableau classiques
         if (volume === 0) {
             volume = $('.results tbody tr').length || $('.results tr').length || 0;
         }
 
         const cleanNumber = (str) => parseInt(str.replace(/[^0-9]/g, '')) || 0;
 
+        const winningsNum = cleanNumber(totalWinnings);
+        const bestCashNum = cleanNumber(bestCash);
+
         const data = {
             name: fullName,
-            totalWinnings: cleanNumber(totalWinnings),
-            bestCash: cleanNumber(bestCash),
+            totalWinnings: winningsNum,
+            bestCash: bestCashNum,
             volume: volume,
-            abi: volume > 0 ? Math.round(cleanNumber(totalWinnings) / volume) : 250
+            abi: volume > 0 ? Math.round(winningsNum / volume) : 250
         };
 
         res.status(200).json(data);
